@@ -73,6 +73,11 @@ export function TestOverlay({ latest }: { latest: ServerMessage | null }) {
             ● กำลังจับเวลา {elapsed.toFixed(1)} / {duration} วินาที
           </p>
         </div>
+        <div className="pointer-events-none absolute inset-x-0 top-20 flex justify-center px-4">
+          <p className="rounded-2xl bg-black/60 px-6 py-3 text-center text-3xl font-bold text-[#ffd22e] sm:text-4xl">
+            กรุณาค้างท่าไว้
+          </p>
+        </div>
         <div className="absolute inset-x-0 bottom-0 h-2 bg-black/40">
           <div className="h-full bg-[#3ddc84] transition-all" style={{ width: `${(elapsed / duration) * 100}%` }} />
         </div>
@@ -136,7 +141,7 @@ export default function TestPanel({
     const text = {
       countdown: "เตรียมตัว...",
       waiting: "ฟังคำสั่ง: ตรงหน้า วันทยหัตถ์ ยกอก อึ้บ",
-      recording: "กำลังจับเวลา — ทำท่าให้ครบจังหวะ",
+      recording: "กำลังจับเวลา — กรุณาค้างท่าไว้",
     }[state];
     return (
       <div className="flex flex-col gap-3">
