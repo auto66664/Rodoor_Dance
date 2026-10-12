@@ -30,6 +30,23 @@ def framing_message(framing):
     return None
 
 
+# กฎที่ดู "ท่าค้าง" — โหมดฝึกวัดจากช่วงล่าสุด (LIVE_SECONDS) → แก้ท่าแล้ว feedback เปลี่ยนตามทันที
+# กฎที่ดู "จังหวะ" (ยกมือไหม / มือผิดข้าง / สะบัดหน้า) ยังวัดจากทั้งคลิป 6 วินาที
+POSTURE_METRICS = ("wrist_to_eye", "tip_to_eye", "elbow_to_shoulder", "tilt", "ankle_gap", "other_arm_angle")
+
+
+def live_errors(sequence, rules):
+    metrics = rules_lib.clip_metrics(sequence, rules["side"])
+    recent = sequence[-int(config.LIVE_SECONDS * config.SAMPLE_FPS):]
+    raised = rules_lib.pose(recent, rules["side"]["wrist"])[:, 1] < rules_lib.RAISED_Y
+
+    if raised.sum() >= 3:   # ยังยกมือค้างอยู่ → ใช้ท่าล่าสุด / ลดมือแล้ว → ใช้ทั้งคลิปเหมือนเดิม
+        live = rules_lib.clip_metrics(recent, rules["side"])
+        metrics.update({key: live[key] for key in POSTURE_METRICS})
+
+    return rules_lib.detect_errors(sequence, rules, metrics)
+
+
 # =====================================================================
 # โหมดฝึก
 # =====================================================================
@@ -40,7 +57,7 @@ class TrainingSession:
         self.scorer = scorer
         self.buffer = deque()            # (time, features)
         self.error_history = deque(maxlen=config.FEEDBACK_HISTORY)
-        self.score_history = deque(maxlen=5)
+        self.score_history = deque(maxlen=6)   # ค่าเฉลี่ย ~1.5 วินาทีล่าสุด
         self.last_predict = 0.0
         self.last_result = None
         self.passed = False
@@ -92,7 +109,7 @@ class TrainingSession:
 
         siamese = self.scorer.similarity(sequence)
         self.score_history.append(siamese["similarity"])
-        self.error_history.append(self.scorer.errors(sequence))
+        self.error_history.append(live_errors(sequence, self.scorer.rules))
 
         # แสดงเฉพาะข้อที่เจอซ้ำอย่างน้อย 2 ใน 3 ครั้งล่าสุด (กันข้อความกระพริบ)
         need = min(2, len(self.error_history))

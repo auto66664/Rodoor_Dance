@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 // ไฟล์เสียงจาก AI_Detection/web_api/generate_voices.py (Botnoi Voice)
 const SOUND_BASE = "/sounds/salute";
-const NEXT_GAP_MS = 800; // พูดจบแล้ว เว้นก่อนประโยคถัดไป
+const NEXT_GAP_MS = 400; // พูดจบแล้ว เว้นก่อนประโยคถัดไป
 const REPEAT_MS = 8000; // ยังผิดข้อเดิมอยู่ → เตือนซ้ำหลังพูดจบ 8 วินาที
 const MAX_LINE_MS = 12000; // กันค้าง: ถ้าไม่ได้สัญญาณพูดจบ ถือว่าจบ
 const TICK_MS = 200;
@@ -32,6 +32,7 @@ export interface VoiceLine {
  * 1. `intro` (คำสั่ง "ตรงหน้า วันทยหัตถ์ ...") พูดก่อนเสมอ ครั้งเดียวต่อรอบ
  * 2. พูดคำสั่งจบ → ให้เวลาทำท่า INTRO_GRACE_MS ก่อนเริ่มเตือน feedback
  * 3. จากนั้นพูด `line` ล่าสุด (feedback ข้อสำคัญที่สุด / ผ่าน) เมื่อประโยคก่อนพูดจบแล้วเท่านั้น
+ * 4. กำลังพูดข้อผิดอยู่ แต่ผู้ฝึกแก้แล้ว (feedback เปลี่ยน) → หยุดทันที แล้วพูดข้อใหม่ ไม่พูดเรื่องเก่าจนจบ
  * - มีไฟล์เสียง Botnoi → เล่นไฟล์ / ยังไม่มี → เบราว์เซอร์อ่าน text แทน
  * - `round` เปลี่ยน (กดฝึกอีกครั้ง) → เริ่มลำดับใหม่ พูดคำสั่งอีกรอบ
  */
@@ -42,6 +43,8 @@ export function useVoiceFeedback(line: VoiceLine | null, intro: VoiceLine | null
   // key → เวอร์ชันไฟล์ (เปลี่ยนเมื่อสร้างเสียงใหม่ → เบราว์เซอร์โหลดไฟล์ใหม่ ไม่ใช้ของเก่าที่จำไว้)
   const availableRef = useRef<Map<string, string> | null>(null);
   const speakingRef = useRef(false);
+  const currentRef = useRef<string | null>(null); // key ที่กำลังพูด
+  const finishRef = useRef<(() => void) | null>(null);
   const lastKeyRef = useRef<string | null>(null);
   const lastEndRef = useRef(0);
   const introEndRef = useRef(0);
@@ -93,11 +96,14 @@ export function useVoiceFeedback(line: VoiceLine | null, intro: VoiceLine | null
 
     const play = (voice: VoiceLine) => {
       speakingRef.current = true;
+      currentRef.current = voice.key;
 
       const done = () => {
         if (!speakingRef.current) return;
         if (safety) clearTimeout(safety);
         speakingRef.current = false;
+        currentRef.current = null;
+        finishRef.current = null;
         lastEndRef.current = performance.now();
         lastKeyRef.current = voice.key;
         playedRef.current.add(voice.key);
@@ -105,6 +111,7 @@ export function useVoiceFeedback(line: VoiceLine | null, intro: VoiceLine | null
       };
 
       safety = setTimeout(done, MAX_LINE_MS);
+      finishRef.current = done;
 
       const speakWithBrowser = () => {
         if (!("speechSynthesis" in window)) {
@@ -137,7 +144,18 @@ export function useVoiceFeedback(line: VoiceLine | null, intro: VoiceLine | null
     };
 
     const tick = () => {
-      if (speakingRef.current) return;
+      if (speakingRef.current) {
+        // feedback ที่กำลังพูดไม่ใช่ปัจจุบันแล้ว (แก้ท่าแล้ว / ผ่านแล้ว) → ตัดทิ้ง
+        const speaking = currentRef.current;
+        const isIntro = speaking === introRef.current?.key;
+        if (speaking && !isIntro && !ONCE_KEYS.has(speaking) && lineRef.current?.key !== speaking) {
+          audioRef.current?.pause();
+          if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+          finishRef.current?.();
+          lastEndRef.current = performance.now() - NEXT_GAP_MS; // พูดข้อใหม่ได้ทันที
+        }
+        return;
+      }
 
       const introLine = introRef.current;
       const next = introLine && !playedRef.current.has(introLine.key) ? introLine : lineRef.current;

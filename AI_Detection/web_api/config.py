@@ -46,8 +46,9 @@ SEQUENCE_LENGTH = CLIP_SECONDS * SAMPLE_FPS   # 60 เฟรม
 MAX_FRAME_WIDTH = 640         # ภาพที่ใหญ่กว่านี้จะถูกย่อก่อนเข้า MediaPipe
 
 # โหมดฝึก (realtime)
-PREDICT_INTERVAL = 0.5        # ประเมินทุก 0.5 วินาที
-FEEDBACK_HISTORY = 3          # แสดง feedback ที่เจอซ้ำอย่างน้อย 2 ใน 3 ครั้งล่าสุด
+PREDICT_INTERVAL = 0.25       # ประเมินทุก 0.25 วินาที
+FEEDBACK_HISTORY = 3          # แสดง feedback ที่เจอซ้ำอย่างน้อย 2 ใน 3 ครั้งล่าสุด (กันกระพริบ)
+LIVE_SECONDS = 1.5            # กฎท่าค้าง (มือ/ศอก/ตัว/เท้า) ดูแค่ช่วงล่าสุดนี้ → feedback ตามท่าปัจจุบัน
 MAX_FEEDBACK = 3
 PASS_SIMILARITY = 70          # ความคล้ายต้นแบบ (เฉลี่ย) เกินนี้ และไม่ผิดกฎข้อไหน = ผ่าน → หยุดประเมิน
 
