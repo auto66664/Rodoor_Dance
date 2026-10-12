@@ -3,22 +3,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SALUTE_AI_URL,
+  blendLandmarks,
   drawSkeleton,
   socketUrl,
   type Command,
   type Connections,
+  type Landmarks,
   type ServerMessage,
   type SessionMode,
 } from "../../lib/salute-ai";
+import { createLocalLandmarker, type LocalLandmarker } from "../../lib/local-landmarker";
 
 const FRAME_INTERVAL_MS = 100; // ~10 FPS (เท่ากับตอนอัด dataset)
 const JPEG_QUALITY = 0.7;
+// ส่งภาพล่วงหน้าได้หลายภาพโดยไม่ต้องรอคำตอบ — เซิร์ฟเวอร์อยู่ไกล (ไป-กลับ ~0.3–0.4 วินาที)
+// ถ้ารอทีละภาพ จะได้แค่ ~2–3 ภาพ/วินาที → AI ได้ข้อมูลน้อยกว่าตอนอัด dataset (10 FPS) แล้วผลเพี้ยน
+// 6 ภาพ = รองรับเวลาไป-กลับได้ถึง ~0.6 วินาทีโดยยังได้ 10 FPS
+const MAX_IN_FLIGHT = 6;
+const SMOOTHING = 0.45; // จุดจากเซิร์ฟเวอร์ (มาช้า/ห่าง) — ต่อ 1 เฟรมจอ, ยิ่งมากยิ่งตามไว
+const LOCAL_SMOOTHING = 0.7; // จุดจากเบราว์เซอร์ (ทันที) — ลดอาการสั่นเล็กน้อย
 
 export type ConnectionStatus = "starting" | "connected" | "camera_error" | "server_error" | "closed";
 
 /**
  * เปิดกล้อง + เชื่อม WebSocket กับ SaluteAI Web API
- * ส่งภาพทีละเฟรม (รอคำตอบก่อนส่งเฟรมถัดไป) แล้ววาดโครงกระดูกบน overlay canvas
+ * ส่งภาพ ~10 ภาพ/วินาที (ค้างรอคำตอบได้ไม่เกิน MAX_IN_FLIGHT ภาพ) แล้ววาดโครงกระดูกบน overlay canvas
  */
 export function useSaluteSession(mode: SessionMode) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -35,45 +44,73 @@ export function useSaluteSession(mode: SessionMode) {
     let stream: MediaStream | null = null;
     let socket: WebSocket | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let waitingReply = false;
-    let lastSentAt = 0;
+    let animation = 0;
+    let inFlight = 0;
     let connections: Connections | null = null;
+    let target: Landmarks | null = null;
+    let shown: Landmarks | null = null;
+    let local: LocalLandmarker | null = null;
+    let lastVideoTime = -1;
     const capture = document.createElement("canvas");
+
+    // วาดทุกเฟรมจอ — ขยับจุดเข้าหาผลล่าสุดแบบนุ่ม ๆ แทนการกระโดดตอนผลมาถึง
+    const render = () => {
+      animation = requestAnimationFrame(render);
+      const overlay = overlayRef.current;
+      const video = videoRef.current;
+      if (!overlay || !video?.videoWidth) return;
+
+      // มีตัวหาจุดในเบราว์เซอร์ → ใช้วาดแทนผลจากเซิร์ฟเวอร์ (ตรงกับภาพทันที)
+      if (local && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime;
+        try {
+          target = local.detect(video, performance.now());
+        } catch {
+          local.close();
+          local = null;
+        }
+      }
+
+      shown = target ? blendLandmarks(shown, target, local ? LOCAL_SMOOTHING : SMOOTHING) : null;
+      if (overlay.width !== overlay.clientWidth) overlay.width = overlay.clientWidth;
+      if (overlay.height !== overlay.clientHeight) overlay.height = overlay.clientHeight;
+      drawSkeleton(overlay, shown ?? undefined, connections, video.videoWidth, video.videoHeight);
+    };
+
+    const tick = () => {
+      if (cancelled) return;
+      timer = setTimeout(tick, FRAME_INTERVAL_MS);
+      sendFrame();
+    };
 
     const sendFrame = () => {
       const video = videoRef.current;
 
-      if (cancelled || !socket || socket.readyState !== WebSocket.OPEN || waitingReply) return;
-
-      if (!video || video.readyState < 2 || !video.videoWidth) {
-        timer = setTimeout(sendFrame, FRAME_INTERVAL_MS);
-        return;
-      }
+      if (!socket || socket.readyState !== WebSocket.OPEN || inFlight >= MAX_IN_FLIGHT) return;
+      if (!video || video.readyState < 2 || !video.videoWidth) return;
 
       // ภาพจากกล้องตรง ๆ (ไม่ mirror) — เซิร์ฟเวอร์ flip ให้เองเหมือนตอนอัด dataset
       capture.width = video.videoWidth;
       capture.height = video.videoHeight;
       capture.getContext("2d")?.drawImage(video, 0, 0);
+      const capturedAt = Date.now() / 1000;
 
-      waitingReply = true;
-      lastSentAt = performance.now();
+      inFlight += 1;
 
       capture.toBlob(
         (blob) => {
           if (!blob || cancelled || !socket || socket.readyState !== WebSocket.OPEN) {
-            waitingReply = false;
+            inFlight = Math.max(0, inFlight - 1);
             return;
           }
-          socket.send(blob);
+          // [เวลาถ่าย 8 byte] + JPEG → เซิร์ฟเวอร์จัดจังหวะเวลาตามตอนถ่าย ไม่ใช่ตอนที่ภาพมาถึง
+          const header = new ArrayBuffer(8);
+          new DataView(header).setFloat64(0, capturedAt, true);
+          socket.send(new Blob([header, blob]));
         },
         "image/jpeg",
         JPEG_QUALITY
       );
-    };
-
-    const scheduleNext = () => {
-      const wait = Math.max(0, FRAME_INTERVAL_MS - (performance.now() - lastSentAt));
-      timer = setTimeout(sendFrame, wait);
     };
 
     const start = async () => {
@@ -124,26 +161,23 @@ export function useSaluteSession(mode: SessionMode) {
       socket.onopen = () => {
         if (cancelled) return;
         setStatus("connected");
-        sendFrame();
+        tick();
+        render();
+
+        // โหลดโมเดลวาดโครงกระดูกในเบราว์เซอร์ (ไม่ได้ = ใช้จุดจากเซิร์ฟเวอร์ต่อไป)
+        createLocalLandmarker()
+          .then((landmarker) => {
+            if (cancelled) landmarker.close();
+            else local = landmarker;
+          })
+          .catch(() => {});
       };
 
       socket.onmessage = (event) => {
         const message: ServerMessage = JSON.parse(event.data);
 
-        if (message.type === "frame" || message.type === "error") {
-          waitingReply = false;
-          scheduleNext();
-        }
-
-        if (message.type === "frame") {
-          const overlay = overlayRef.current;
-          const video = videoRef.current;
-          if (overlay && video?.videoWidth) {
-            overlay.width = overlay.clientWidth;
-            overlay.height = overlay.clientHeight;
-            drawSkeleton(overlay, message.landmarks, connections, video.videoWidth, video.videoHeight);
-          }
-        }
+        if (message.type === "frame" || message.type === "error") inFlight = Math.max(0, inFlight - 1);
+        if (message.type === "frame" && !local) target = message.landmarks ?? null;
 
         if (message.type === "frame" || message.type === "state") {
           setLatest((previous) => ({ ...previous, ...message }));
@@ -167,6 +201,8 @@ export function useSaluteSession(mode: SessionMode) {
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      cancelAnimationFrame(animation);
+      local?.close();
       socket?.close();
       socketRef.current = null;
       stream?.getTracks().forEach((track) => track.stop());

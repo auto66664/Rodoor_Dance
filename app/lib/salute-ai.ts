@@ -109,6 +109,23 @@ export interface Connections {
 
 // วาดโครงกระดูกบน canvas ที่ซ้อนวิดีโอแบบ object-cover (เต็มจอ ภาพถูกครอปให้พอดีจอ)
 // พิกัด 0–1 เป็นของภาพที่ flip แล้ว = ตรงกับวิดีโอที่แสดงแบบกระจก
+/**
+ * ขยับจุดที่วาดอยู่ (current) เข้าหาจุดล่าสุดจากเซิร์ฟเวอร์ (target) ทีละนิด → เส้นเคลื่อนลื่นระหว่างเฟรม
+ * amount = 1 คือกระโดดไปเลย; มือที่เพิ่งโผล่/หายไป กระโดดทันที
+ */
+export function blendLandmarks(current: Landmarks | null, target: Landmarks, amount: number): Landmarks {
+  const blend = <T extends number[]>(from: T[] | null, to: T[] | null): T[] | null => {
+    if (!to || !from || from.length !== to.length) return to;
+    return to.map((point, i) => point.map((value, k) => (k < 2 ? from[i][k] + (value - from[i][k]) * amount : value)) as T);
+  };
+
+  return {
+    pose: blend(current?.pose ?? null, target.pose),
+    left_hand: blend(current?.left_hand ?? null, target.left_hand),
+    right_hand: blend(current?.right_hand ?? null, target.right_hand),
+  };
+}
+
 export function drawSkeleton(
   canvas: HTMLCanvasElement,
   landmarks: Landmarks | undefined,

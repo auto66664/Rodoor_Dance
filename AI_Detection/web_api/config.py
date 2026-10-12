@@ -59,5 +59,6 @@ POST_ONSET_SECONDS = CLIP_SECONDS - PRE_ONSET_SECONDS   # จับเวลา�
 WAIT_TIMEOUT = 10             # ไม่ยกมือภายในกี่วินาที = ไม่ได้ทำท่า
 PENALTY_PER_ERROR = 10        # ผิด 1 อย่าง หัก 10%
 SIAMESE_PENALTY = 10          # ท่าโดยรวมไม่คล้ายต้นแบบ หักอีก 10%
+MIN_SCORE_FRAMES = 15         # ได้ภาพน้อยกว่านี้ใน 6 วิ (< 2.5 FPS) = เน็ตช้าเกินไป ให้ทดสอบใหม่
 MIN_IN_FRAME = 0.8            # หัว/เท้าต้องอยู่ในภาพ ≥ 80% ของเวลาจับเวลา
 SAVE_RESULTS = os.environ.get("SAVE_RESULTS", "1") == "1"   # บันทึกผลทดสอบลง results/ (บน cloud ปิดได้)

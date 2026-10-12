@@ -208,9 +208,11 @@ class TestSession:
 
         recent = [f for t, f in self.buffer if now - t <= config.PRE_ONSET_SECONDS]
 
-        if len(recent) >= 5:
+        # notebook (10 FPS) ใช้ 5 เฟรมแรก = 0.5 วินาทีแรกเป็นท่ายืนตรง — ที่นี่นับเป็นเวลาแทนจำนวนเฟรม
+        # เพื่อให้ยังจับการยกมือได้ถ้าภาพมาไม่ครบ 10 FPS
+        if len(recent) >= 4:
             heights = rules_lib.wrist_height(np.array(recent))
-            base = float(np.median(heights[:5]))
+            base = float(np.median(heights[:max(2, len(recent) // 4)]))
 
             if base >= rules_lib.HAND_DOWN_Y and base - heights[-1] > rules_lib.ONSET_RISE:
                 self.onset_time = now
@@ -224,7 +226,7 @@ class TestSession:
             self._score(now)   # ไม่ยกมือภายในเวลา → ประเมินช่วงล่าสุด (จะได้ "ไม่ได้ทำท่า")
 
     def _score(self, now):
-        if len(self.buffer) < config.SEQUENCE_LENGTH // 3:
+        if len(self.buffer) < config.MIN_SCORE_FRAMES:
             self.message = "เก็บเฟรมได้น้อยเกินไป - ทดสอบครั้งนี้ใหม่"
             self._go("countdown", now)
             return

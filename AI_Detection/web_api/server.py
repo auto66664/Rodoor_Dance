@@ -13,6 +13,7 @@ Endpoints
 """
 import asyncio
 import json
+import struct
 import time
 
 import config  # noqa: F401  (ตั้ง sys.path ให้ import salute_rules ได้)
@@ -71,7 +72,34 @@ def info():
     }
 
 
-def _process(holistic, session, data):
+class FrameClock:
+    """
+    เวลาของแต่ละภาพ = เวลาที่ "ถ่าย" บนเครื่องผู้ใช้ (ไม่ใช่เวลาที่มาถึงเซิร์ฟเวอร์)
+    → เน็ตช้า/กระตุก ภาพมาไม่สม่ำเสมอ ก็ยังเว้นระยะ 0.1 วิ ตรงกับตอนอัด dataset
+
+    เว็บส่ง: [เวลาถ่าย 8 byte (float64, วินาที)] + JPEG — ถ้าไม่มี header (เว็บรุ่นเก่า) ใช้เวลาที่มาถึงแทน
+    แปลงเป็นนาฬิกาเซิร์ฟเวอร์ด้วย offset ที่น้อยที่สุด (= เวลาเดินทางของภาพที่มาเร็วสุด)
+    """
+
+    def __init__(self):
+        self.offset = None
+        self.last = 0.0
+
+    def split(self, data, arrived):
+        if len(data) > 10 and data[8:10] == b"\xff\xd8":   # JPEG เริ่มด้วย FF D8
+            captured = struct.unpack("<d", data[:8])[0]
+            offset = arrived - captured
+            self.offset = offset if self.offset is None else min(self.offset, offset)
+            stamp = captured + self.offset
+            data = data[8:]
+        else:
+            stamp = arrived
+
+        self.last = max(stamp, self.last)   # ห้ามย้อนเวลา
+        return data, self.last
+
+
+def _process(holistic, session, data, stamp):
     """งานหนัก (MediaPipe + TensorFlow) — รันใน thread แยก ไม่ให้ server ค้าง"""
     image = decode_frame(data)
 
@@ -80,7 +108,7 @@ def _process(holistic, session, data):
 
     results = process_frame(holistic, image)
     frame_framing = framing(results)
-    payload = session.update(time.time(), extract_landmarks(results), frame_framing)
+    payload = session.update(stamp, extract_landmarks(results), frame_framing)
 
     return {
         "type": "frame",
@@ -94,6 +122,7 @@ def _process(holistic, session, data):
 async def _run_session(websocket: WebSocket, session):
     await websocket.accept()
     holistic = create_holistic()
+    clock = FrameClock()
 
     try:
         await websocket.send_json({"type": "hello", "mode": session.mode})
@@ -106,7 +135,8 @@ async def _run_session(websocket: WebSocket, session):
 
             if message.get("bytes") is not None:
                 # 1 ภาพ (JPEG) ต่อ 1 ข้อความ → ตอบผล 1 ข้อความ
-                reply = await asyncio.to_thread(_process, holistic, session, message["bytes"])
+                data, stamp = clock.split(message["bytes"], time.time())
+                reply = await asyncio.to_thread(_process, holistic, session, data, stamp)
                 await websocket.send_json(reply)
 
             elif message.get("text") is not None:
