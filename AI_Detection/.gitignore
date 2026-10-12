@@ -1,0 +1,5 @@
+# ไฟล์ที่สร้างขึ้นเอง ไม่ต้องขึ้น git
+results/
+prepared/
+**/__pycache__/
+web_api/.env

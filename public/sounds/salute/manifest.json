@@ -1,0 +1,77 @@
+{
+  "command": {
+    "text": "ตรงหน้า [0.5] วันทยหัตถ์ [0.5] ยกอก [0.7] อึ้บ",
+    "file": "command.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "passed": {
+    "text": "ผ่าน ท่าถูกต้อง",
+    "file": "passed.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "correct": {
+    "text": "ท่าถูกต้อง ดีมาก",
+    "file": "correct.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "not_similar": {
+    "text": "ท่ายังไม่ตรงกับต้นแบบ ลองทำใหม่อีกครั้ง",
+    "file": "not_similar.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "no_body": {
+    "text": "ถอยให้เห็นทั้งตัว",
+    "file": "no_body.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "no_salute": {
+    "text": "ไม่ได้ทำท่าทาง กรุณายกมือขวาขึ้นทำวันทยหัตถ์ ปฏิบัติ",
+    "file": "no_salute.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "wrong_hand": {
+    "text": "ใช้มือผิดข้าง กรุณาใช้มือขวาทำวันทยหัตถ์ ปฏิบัติ",
+    "file": "wrong_hand.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "hand_low": {
+    "text": "ปลายนิ้วต่ำกว่าคิ้ว กรุณายกมือขึ้นให้ปลายนิ้วอยู่ระดับคิ้ว ปฏิบัติ",
+    "file": "hand_low.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "hand_high": {
+    "text": "ปลายนิ้วสูงกว่าคิ้ว กรุณาลดมือลงให้ปลายนิ้วอยู่ระดับคิ้ว ปฏิบัติ",
+    "file": "hand_high.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "elbow_at_shoulder": {
+    "text": "ศอกไม่กาง กางศอกประมาณสี่สิบห้าองศา ปฏิบัติ",
+    "file": "elbow_at_shoulder.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "body_tilted": {
+    "text": "ตัวเอียง ยืนตัวตรง ให้ไหล่ทั้งสองข้างเสมอกัน ปฏิบัติ",
+    "file": "body_tilted.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "heels_apart": {
+    "text": "ขาไม่ชิดปลายเท้าไม่แยก ยืนตัวตรงขาชิด และปลายเท้าแยกประมาณสี่สิบห้าองศา ปฏิบัติ",
+    "file": "heels_apart.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "no_head_turn": {
+    "text": "ไม่สะบัดหน้า ยกอกอึ้บ แล้วสะบัดหน้าไปทางซ้าย ปฏิบัติ",
+    "file": "no_head_turn.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "wrong_head_turn": {
+    "text": "สะบัดหน้าผิดข้าง สะบัดหน้าไปทางซ้าย ไม่ใช่ทางขวา ปฏิบัติ",
+    "file": "wrong_head_turn.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  },
+  "left_arm_not_at_side": {
+    "text": "มือซ้ายไม่แนบลำตัว แนบมือซ้ายไว้ข้างลำตัวด้วย ปฏิบัติ",
+    "file": "left_arm_not_at_side.mp3",
+    "voice": "edge:th-TH-NiwatNeural:-5%"
+  }
+}

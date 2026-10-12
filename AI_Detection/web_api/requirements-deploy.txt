@@ -1,0 +1,7 @@
+# สำหรับ Docker / cloud (Linux) — เวอร์ชัน ML ต้องตรงกับตอนเทรน (TF 2.15)
+# (mediapipe ติดตั้ง opencv-contrib-python ให้เอง)
+tensorflow-cpu==2.15.1
+mediapipe==0.10.21
+numpy==1.26.4
+fastapi>=0.110
+uvicorn[standard]>=0.29

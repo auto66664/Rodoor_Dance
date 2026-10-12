@@ -1,0 +1,9 @@
+# ใช้กับ Python 3.10 ตัวเดียวกับ notebook (เวอร์ชัน ML ต้องตรงกับตอนเทรน)
+tensorflow==2.15.1
+mediapipe==0.10.21
+opencv-python==4.11.0.86
+numpy==1.26.4
+
+# Web API
+fastapi>=0.110
+uvicorn[standard]>=0.29

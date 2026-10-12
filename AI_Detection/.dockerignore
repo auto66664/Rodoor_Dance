@@ -1,0 +1,9 @@
+# ไม่ต้องใส่ใน container: notebook, ข้อมูลเทรน, ผลทดสอบ, cache
+*.ipynb
+prepared/
+results/
+dataset/incorrect/
+**/__pycache__/
+web_api/.env
+web_api/check_offline.py
+web_api/generate_voices.py

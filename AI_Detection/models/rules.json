@@ -1,0 +1,62 @@
+{
+  "side": {
+    "wrist": 15,
+    "elbow": 13,
+    "shoulder": 11,
+    "other_wrist": 16,
+    "other_shoulder": 12,
+    "hand_block": 0,
+    "tip_offset": 0.4444149434566498,
+    "turn_sign": -1.0
+  },
+  "thresholds": {
+    "hand_low": {
+      "metric": "wrist_to_eye",
+      "direction": "gt",
+      "threshold": 0.4351,
+      "source": "6 labeled clips"
+    },
+    "hand_high": {
+      "metric": "tip_to_eye",
+      "direction": "lt",
+      "threshold": -0.3165,
+      "source": "6 labeled clips"
+    },
+    "elbow_at_shoulder": {
+      "metric": "elbow_to_shoulder",
+      "direction": "lt",
+      "threshold": -0.3797,
+      "source": "6 labeled clips"
+    },
+    "body_tilted": {
+      "metric": "tilt",
+      "direction": "gt",
+      "threshold": 0.388,
+      "source": "6 labeled clips"
+    },
+    "heels_apart": {
+      "metric": "ankle_gap",
+      "direction": "gt",
+      "threshold": 0.4856,
+      "source": "6 labeled clips"
+    },
+    "left_arm_not_at_side": {
+      "metric": "other_arm_angle",
+      "direction": "gt",
+      "threshold": 10.1196,
+      "source": "6 labeled clips"
+    },
+    "no_head_turn": {
+      "metric": "turn_left",
+      "direction": "lt",
+      "threshold": 0.133,
+      "source": "6 labeled clips"
+    },
+    "wrong_head_turn": {
+      "metric": "turn_right",
+      "direction": "gt",
+      "threshold": 0.2771,
+      "source": "6 labeled clips"
+    }
+  }
+}
