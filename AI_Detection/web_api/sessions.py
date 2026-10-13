@@ -2,7 +2,7 @@
 สถานะของผู้ใช้ 1 คน (1 WebSocket)
 
 - TrainingSession: โหมดฝึก — ประเมินต่อเนื่องจาก 6 วินาทีล่าสุด (เหมือน cell 5 Test ใน siamese_learn)
-- TestSession: โหมดทดสอบ — นับถอยหลัง → สัญญาณ + รอยกมือ (ข้างไหนก็ได้) → จับเวลา 4 วิ → ผล
+- TestSession: โหมดทดสอบ — นับถอยหลัง → สัญญาณ + รอศอกงอ < 90° (แขนข้างไหนก็ได้) → จับเวลา 4 วิ → ผล
 
 ทั้งสองคลาสรับ (เวลา, features, framing) ทีละเฟรม และไม่ยุ่งกับกล้อง/MediaPipe
 จึงทดสอบได้ด้วยคลิปจาก dataset โดยไม่ต้องเปิดกล้อง (ดู check_offline.py)
@@ -45,6 +45,24 @@ def live_errors(sequence, rules):
         metrics.update({key: live[key] for key in POSTURE_METRICS})
 
     return rules_lib.detect_errors(sequence, rules, metrics)
+
+
+def elbow_angle(features, aspect):
+    """มุมที่ข้อศอก (องศา) ของแขนข้างที่งอมากกว่า — แขนเหยียดตรง = 180°
+    พิกัดแกน x/y ของ MediaPipe ยืดตามขนาดภาพ จึงคูณ x ด้วยอัตราส่วนภาพก่อนวัดมุม"""
+    seq = features[np.newaxis]
+    angles = []
+
+    for shoulder, elbow, wrist in ((11, 13, 15), (12, 14, 16)):
+        s, e, w = (rules_lib.pose(seq, k)[0] for k in (shoulder, elbow, wrist))
+        if min(e[3], w[3]) < 0.5:     # มองไม่เห็นศอก/ข้อมือ → ไม่นับแขนข้างนี้
+            continue
+        a = np.array([(s[0] - e[0]) * aspect, s[1] - e[1]])
+        b = np.array([(w[0] - e[0]) * aspect, w[1] - e[1]])
+        cos = a @ b / max(np.linalg.norm(a) * np.linalg.norm(b), 1e-6)
+        angles.append(float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0)))))
+
+    return min(angles) if angles else 180.0
 
 
 # =====================================================================
@@ -155,6 +173,7 @@ class TestSession:
         self.state_since = 0.0
         self.message = None
         self.saved_files = None
+        self.aspect = 4 / 3          # อัตราส่วนภาพกล้อง (server.py อัปเดตจากภาพจริง)
         self._reset_attempt()
 
     # -------------------------
@@ -213,6 +232,8 @@ class TestSession:
             # ตัวหลุดเฟรม → เริ่มรอยกมือใหม่
             self.buffer.clear()
             self.onset_time = None
+            self.bent_frames = 0
+            self.bent_since = None
             self.state = "waiting"
             self.message = framing_message(framing)
             return
@@ -228,31 +249,24 @@ class TestSession:
                 self._score(now)
             return
 
-        # --- waiting: เก็บย้อนหลังแค่ CLIP_SECONDS แล้วหาจังหวะเริ่มยกมือ ---
+        # --- waiting: เก็บย้อนหลังแค่ CLIP_SECONDS (ช่วงก่อนยกมือ ใช้คิดคะแนน) แล้วรอศอกงอ ---
         while self.buffer and now - self.buffer[0][0] > config.CLIP_SECONDS:
             self.buffer.popleft()
 
-        recent = [(t, f) for t, f in self.buffer if now - t <= config.PRE_ONSET_SECONDS]
+        # เริ่มจับเวลาเมื่อศอกแขนข้างไหนก็ได้งอต่ำกว่า ONSET_ELBOW_ANGLE (ยืนตรง ~165°, วันทยหัตถ์ ~30°)
+        # ต้องงอติดกัน 2 ภาพ (กันภาพเพี้ยนภาพเดียว) แต่นับเวลาเริ่มจากภาพแรก
+        if elbow_angle(features, self.aspect) < config.ONSET_ELBOW_ANGLE:
+            if self.bent_since is None:
+                self.bent_since = now
+            self.bent_frames += 1
 
-        # notebook (10 FPS) ใช้ 5 เฟรมแรก = 0.5 วินาทีแรกเป็นท่ายืนตรง — ที่นี่นับเป็นเวลาแทนจำนวนเฟรม
-        # เพื่อให้ยังจับการยกมือได้ถ้าภาพมาไม่ครบ 10 FPS
-        if len(recent) >= 4:
-            times = [t for t, _ in recent]
-            heights = rules_lib.wrist_height(np.array([f for _, f in recent]))
-            base = float(np.median(heights[:max(2, len(recent) // 4)]))
-
-            if base >= rules_lib.HAND_DOWN_Y and base - heights[-1] > rules_lib.ONSET_RISE:
-                # ยืนยันว่ายกมือได้ตอนมือขึ้นไปแล้วระยะหนึ่ง (ช้ากว่าจริง ~0.15 วิ)
-                # → ย้อนเวลาเริ่มจับไปที่จังหวะที่มือเริ่มขยับจริง
-                i = len(heights) - 1
-                while i > 0 and heights[i - 1] - heights[i] > config.MOTION_EPS:
-                    i -= 1
-                self.onset_time = times[i]
+            if self.bent_frames >= 2:
+                self.onset_time = self.bent_since
                 self.state = "recording"
                 return
-
-            if heights[-1] < rules_lib.HAND_DOWN_Y and base < rules_lib.HAND_DOWN_Y:
-                self.message = "ลดมือลงข้างลำตัวก่อน แล้วค่อยยกมือ"
+        else:
+            self.bent_frames = 0
+            self.bent_since = None
 
         if now - self.state_since >= config.WAIT_TIMEOUT:
             self._score(now)   # ไม่ยกมือภายในเวลา → ประเมินช่วงล่าสุด (จะได้ "ไม่ได้ทำท่า")
@@ -317,6 +331,8 @@ class TestSession:
         self.buffer = deque()
         self.onset_time = None
         self.framing_counts = [0, 0, 0]
+        self.bent_frames = 0
+        self.bent_since = None
 
     def _go(self, state, now):
         self.state = state

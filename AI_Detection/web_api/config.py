@@ -55,7 +55,7 @@ PASS_SIMILARITY = 70          # ความคล้ายต้นแบบ (�
 # โหมดทดสอบ
 NUM_ATTEMPTS = 1              # ทดสอบกี่ครั้งต่อรอบ (ต้องตรงกับ test-panel.tsx)
 COUNTDOWN_SECONDS = 3
-MOTION_EPS = 0.02             # ข้อมือสูงขึ้นต่อเฟรมเกินนี้ = กำลังยกมือ (ใช้ย้อนหาจังหวะเริ่มยกจริง)
+ONSET_ELBOW_ANGLE = 90        # หลังนับถอยหลัง ศอกงอต่ำกว่านี้ (องศา) = เริ่มจับเวลา
 PRE_ONSET_SECONDS = 2.0       # เก็บช่วงยืนตรงก่อนยกมือ
 POST_ONSET_SECONDS = CLIP_SECONDS - PRE_ONSET_SECONDS   # จับเวลาหลังเริ่มยกมือ 4 วินาที
 WAIT_TIMEOUT = 10             # ไม่ยกมือภายในกี่วินาที = ไม่ได้ทำท่า

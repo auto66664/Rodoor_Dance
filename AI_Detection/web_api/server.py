@@ -107,6 +107,7 @@ def _process(holistic, session, data, stamp):
         return {"type": "error", "message": "อ่านภาพไม่ได้ (ต้องเป็น JPEG/PNG)"}
 
     results = process_frame(holistic, image)
+    session.aspect = image.shape[1] / image.shape[0]   # ใช้แก้มุมศอกให้ตรงกับภาพจริง
     frame_framing = framing(results)
     payload = session.update(stamp, extract_landmarks(results), frame_framing)
 
