@@ -2,7 +2,7 @@
 สถานะของผู้ใช้ 1 คน (1 WebSocket)
 
 - TrainingSession: โหมดฝึก — ประเมินต่อเนื่องจาก 6 วินาทีล่าสุด (เหมือน cell 5 Test ใน siamese_learn)
-- TestSession: โหมดทดสอบ — นับถอยหลัง → รอยกมือ → จับเวลา 4 วิ → ผล (เหมือน siamese_test_mode)
+- TestSession: โหมดทดสอบ — นับถอยหลัง → ยืนตรงเก็บข้อมูล 6 วิ → สัญญาณ → รอยกมือ → จับเวลา 4 วิ → ผล
 
 ทั้งสองคลาสรับ (เวลา, features, framing) ทีละเฟรม และไม่ยุ่งกับกล้อง/MediaPipe
 จึงทดสอบได้ด้วยคลิปจาก dataset โดยไม่ต้องเปิดกล้อง (ดู check_offline.py)
@@ -190,12 +190,43 @@ class TestSession:
     # -------------------------
     def update(self, now, features, framing):
         if self.state == "countdown" and now - self.state_since >= config.COUNTDOWN_SECONDS:
-            self._go("waiting", now)
+            self._go("collecting", now)
 
-        if self.state in ("waiting", "recording"):
+        if self.state == "collecting":
+            self._collect(now, features, framing)
+        elif self.state in ("waiting", "recording"):
             self._track(now, features, framing)
 
         return self._payload(now, framing)
+
+    def _collect(self, now, features, framing):
+        """ยืนตรงนิ่ง ๆ ให้ครบ COLLECT_SECONDS ก่อนเล่นสัญญาณ (เว็บเล่นเสียงเมื่อเข้า waiting)"""
+        self.message = None
+
+        if features is None:
+            self.buffer.clear()
+            self.state_since = now
+            self.message = framing_message(framing)
+            return
+
+        # ยกมือก่อนสัญญาณ (ติดกันหลายภาพ — กันภาพเพี้ยนภาพเดียว) → เริ่มนับใหม่
+        # ต้องมีช่วงยืนตรงให้ AI ใช้เทียบตอนหาจังหวะยกมือ
+        if rules_lib.wrist_height(features[np.newaxis])[0] < rules_lib.HAND_DOWN_Y:
+            self.raised_frames += 1
+        else:
+            self.raised_frames = 0
+
+        if self.raised_frames >= 3:
+            self.buffer.clear()
+            self.state_since = now
+            self.message = "ยังไม่ต้องยกมือ - ยืนตรงรอฟังสัญญาณ"
+            return
+
+        self.buffer.append((now, features))
+
+        if now - self.state_since >= config.COLLECT_SECONDS:
+            self.state = "waiting"   # เก็บ buffer ช่วงยืนตรงไว้ต่อ (ไม่ใช้ _go ที่ล้าง buffer)
+            self.state_since = now
 
     def _track(self, now, features, framing):
         self.message = None
@@ -223,16 +254,22 @@ class TestSession:
         while self.buffer and now - self.buffer[0][0] > config.CLIP_SECONDS:
             self.buffer.popleft()
 
-        recent = [f for t, f in self.buffer if now - t <= config.PRE_ONSET_SECONDS]
+        recent = [(t, f) for t, f in self.buffer if now - t <= config.PRE_ONSET_SECONDS]
 
         # notebook (10 FPS) ใช้ 5 เฟรมแรก = 0.5 วินาทีแรกเป็นท่ายืนตรง — ที่นี่นับเป็นเวลาแทนจำนวนเฟรม
         # เพื่อให้ยังจับการยกมือได้ถ้าภาพมาไม่ครบ 10 FPS
         if len(recent) >= 4:
-            heights = rules_lib.wrist_height(np.array(recent))
+            times = [t for t, _ in recent]
+            heights = rules_lib.wrist_height(np.array([f for _, f in recent]))
             base = float(np.median(heights[:max(2, len(recent) // 4)]))
 
             if base >= rules_lib.HAND_DOWN_Y and base - heights[-1] > rules_lib.ONSET_RISE:
-                self.onset_time = now
+                # ยืนยันว่ายกมือได้ตอนมือขึ้นไปแล้วระยะหนึ่ง (ช้ากว่าจริง ~0.15 วิ)
+                # → ย้อนเวลาเริ่มจับไปที่จังหวะที่มือเริ่มขยับจริง
+                i = len(heights) - 1
+                while i > 0 and heights[i - 1] - heights[i] > config.MOTION_EPS:
+                    i -= 1
+                self.onset_time = times[i]
                 self.state = "recording"
                 return
 
@@ -302,6 +339,7 @@ class TestSession:
         self.buffer = deque()
         self.onset_time = None
         self.framing_counts = [0, 0, 0]
+        self.raised_frames = 0
 
     def _go(self, state, now):
         self.state = state
@@ -345,6 +383,9 @@ class TestSession:
 
         if self.state == "countdown":
             payload["countdown"] = max(1, config.COUNTDOWN_SECONDS - int(now - self.state_since))
+        elif self.state == "collecting":
+            payload["collect_elapsed"] = round(min(now - self.state_since, config.COLLECT_SECONDS), 1)
+            payload["collect_duration"] = config.COLLECT_SECONDS
         elif self.state == "waiting":
             payload["wait_remaining"] = round(max(0.0, config.WAIT_TIMEOUT - (now - self.state_since)), 1)
         elif self.state == "recording":

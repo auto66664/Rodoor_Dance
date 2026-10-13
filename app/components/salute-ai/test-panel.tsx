@@ -9,7 +9,7 @@ import { useAuth } from "../auth-provider";
 
 const NUM_ATTEMPTS = 1; // ต้องตรงกับ NUM_ATTEMPTS ใน AI_Detection/web_api/config.py
 
-// เสียงคำสั่ง "ตรงหน้า วันทยหัตถ์ ยกอก อึ้บ" — เล่นทันทีที่นับถอยหลังจบ เป็นสัญญาณให้ผู้ฝึกทำท่า
+// เสียงคำสั่ง "ตรงหน้า วันทยหัตถ์ ยกอก อึ้บ" — เล่นหลังยืนตรงเก็บข้อมูลครบ 6 วินาที เป็นสัญญาณให้ผู้ฝึกทำท่า
 // (การจับเวลายังเริ่มตอนตรวจพบว่ายกมือเหมือนเดิม เสียงไม่มีผลกับการคิดคะแนน)
 const TEST_COMMAND_SOUND = "/sounds/salute/test_command.mp3";
 
@@ -18,7 +18,7 @@ function useTestCommandSound(state: string | undefined, attempt: number) {
   const playedForRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // นับถอยหลังจบ → เข้าช่วงรอยกมือ: เล่น 1 ครั้งต่อการทดสอบ 1 ครั้ง
+    // เก็บข้อมูลครบ → เข้าช่วงรอยกมือ: เล่น 1 ครั้งต่อการทดสอบ 1 ครั้ง
     if (state === "waiting" && playedForRef.current !== attempt) {
       playedForRef.current = attempt;
       const audio = audioRef.current ?? new Audio(TEST_COMMAND_SOUND);
@@ -49,6 +49,27 @@ export function TestOverlay({ latest }: { latest: ServerMessage | null }) {
           {latest?.countdown}
         </p>
       </div>
+    );
+  }
+
+  if (state === "collecting") {
+    const elapsed = latest?.collect_elapsed ?? 0;
+    const duration = latest?.collect_duration ?? 6;
+    return (
+      <>
+        <div className="absolute inset-x-0 top-0 bg-[#12345a]/90 px-4 pt-4 pb-3 text-center">
+          <p className="text-xl font-bold text-white">ยืนตรง เก็บข้อมูล {elapsed.toFixed(1)} / {duration} วินาที</p>
+          <p className="text-sm text-[#d8e2ee]">ยังไม่ต้องยกมือ — รอฟังสัญญาณ &ldquo;ตรงหน้า วันทยหัตถ์&rdquo;</p>
+        </div>
+        {latest?.message && (
+          <div className="pointer-events-none absolute inset-x-0 top-24 flex justify-center px-4">
+            <p className="rounded-2xl bg-black/60 px-5 py-2.5 text-center text-xl font-bold text-[#ffb02e]">{latest.message}</p>
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 h-2 bg-black/40">
+          <div className="h-full bg-[#4db4ff] transition-all" style={{ width: `${(elapsed / duration) * 100}%` }} />
+        </div>
+      </>
     );
   }
 
@@ -114,8 +135,8 @@ export default function TestPanel({
         <h3 className="text-base font-semibold text-white">โหมดทดสอบ</h3>
         <ol className="space-y-2 text-sm text-[#d8e2ee]">
           <li>1. ยืนให้เห็นทั้งตัว ตั้งแต่หัวถึงเท้า</li>
-          <li>2. กดเริ่ม → นับถอยหลัง 3 วินาที</li>
-          <li>3. ยกมือทำวันทยหัตถ์เมื่อพร้อม — เริ่มจับเวลาอัตโนมัติตอนยกมือ 4 วินาที</li>
+          <li>2. กดเริ่ม → นับถอยหลัง 3 วินาที → ยืนตรงนิ่ง ๆ 6 วินาที</li>
+          <li>3. ได้ยินสัญญาณ แล้วยกมือทำวันทยหัตถ์ — เริ่มจับเวลา 4 วินาทีตั้งแต่เริ่มยกมือ</li>
           <li>4. ทดสอบ {NUM_ATTEMPTS} ครั้ง แล้วสรุปความแม่นยำรวม</li>
         </ol>
         <p className="rounded-lg bg-[#07101b] px-3 py-2 text-xs text-[#91a0b2]">
@@ -137,9 +158,10 @@ export default function TestPanel({
     );
   }
 
-  if (state === "countdown" || state === "waiting" || state === "recording") {
+  if (state === "countdown" || state === "collecting" || state === "waiting" || state === "recording") {
     const text = {
       countdown: "เตรียมตัว...",
+      collecting: "ยืนตรง เก็บข้อมูล 6 วินาที — ยังไม่ต้องยกมือ",
       waiting: "ฟังคำสั่ง: ตรงหน้า วันทยหัตถ์ ยกอก อึ้บ",
       recording: "กำลังจับเวลา — กรุณาค้างท่าไว้",
     }[state];
