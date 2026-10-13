@@ -28,7 +28,7 @@ def run_test_mode(scorer, clip):
     now = 1000.0
     session.handle_command({"type": "start"}, now)
 
-    for features in stream(clip, idle_frames=100):   # นับถอยหลัง 3 วิ + ยืนตรงเก็บข้อมูล 6 วิ
+    for features in stream(clip, idle_frames=40):
         now += 0.1
         payload = session.update(now, features, FULL_BODY)
 

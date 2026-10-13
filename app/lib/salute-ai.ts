@@ -66,7 +66,7 @@ export interface TestSummary {
   common_errors: (FeedbackItem & { count: number })[];
 }
 
-export type TestState = "idle" | "countdown" | "collecting" | "waiting" | "recording" | "result" | "summary";
+export type TestState = "idle" | "countdown" | "waiting" | "recording" | "result" | "summary";
 
 // ข้อความจากเซิร์ฟเวอร์ (frame = ตอบภาพ, state = ตอบคำสั่ง)
 export interface ServerMessage {
@@ -87,8 +87,6 @@ export interface ServerMessage {
   ready?: boolean;
   countdown?: number;
   wait_remaining?: number;
-  collect_elapsed?: number;
-  collect_duration?: number;
   elapsed?: number;
   duration?: number;
   can_save_correct?: boolean;
