@@ -57,7 +57,7 @@ export function TestOverlay({ latest }: { latest: ServerMessage | null }) {
       <div className="absolute inset-x-0 top-0 bg-[#12345a]/90 px-4 pt-4 pb-3 text-center">
         <p className="text-xl font-bold text-white">ฟังคำสั่ง แล้วทำท่าตามจังหวะ</p>
         <p className="text-sm text-[#d8e2ee]">
-          เริ่มจับเวลาอัตโนมัติเมื่อยกมือ (รอได้อีก {Math.ceil(latest?.wait_remaining ?? 0)} วินาที)
+          เริ่มจับเวลาอัตโนมัติเมื่องอศอกยกมือ (รอได้อีก {Math.ceil(latest?.wait_remaining ?? 0)} วินาที)
         </p>
       </div>
     );
@@ -115,7 +115,7 @@ export default function TestPanel({
         <ol className="space-y-2 text-sm text-[#d8e2ee]">
           <li>1. ยืนให้เห็นทั้งตัว ตั้งแต่หัวถึงเท้า</li>
           <li>2. กดเริ่ม → นับถอยหลัง 3 วินาที → ได้ยินสัญญาณ</li>
-          <li>3. ยกมือทำวันทยหัตถ์ — เริ่มจับเวลา 4 วินาทีตั้งแต่เริ่มยกแขน</li>
+          <li>3. ยกมือทำวันทยหัตถ์ — เริ่มจับเวลา 4 วินาทีเมื่อศอกงอต่ำกว่า 90 องศา</li>
           <li>4. ทดสอบ {NUM_ATTEMPTS} ครั้ง แล้วสรุปความแม่นยำรวม</li>
         </ol>
         <p className="rounded-lg bg-[#07101b] px-3 py-2 text-xs text-[#91a0b2]">
